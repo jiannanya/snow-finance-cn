@@ -84,6 +84,7 @@ user-invocable: true
 | P2 | 同花顺公司资料 | `stockpage.10jqka.com.cn/{code}/company/` | 公司简介/高管/股本/子公司 |
 | P2 | 百度财经 | `finance.baidu.com/stock/ab-{code}` | 实时价格/PE快速核对 |
 | P3 | 东方财富 | `quote.eastmoney.com/{市场}{code}.html` | 备用行情/龙虎榜/研报 |
+| **P4 🌐** | **雅虎财经（Yahoo Finance）** | `finance.yahoo.com/quote/{code}.SZ/`（沪市用 `.SS`）| TTM营收/净利/EPS/PE/ROE/ROA/P-B/D-E/EV-EBITDA/机构目标价/YTD涨幅 ✅已验证可用 |
 
 #### 2.2 机构研报与评级
 
@@ -109,6 +110,44 @@ user-invocable: true
 | 同花顺公告 | `notice.10jqka.com.cn/` | 年报/季报/公告PDF |
 | 同花顺行业 | `stockpage.10jqka.com.cn/{code}/field/` | 行业对比/行业资讯 |
 | 深交所/上交所 | `www.szse.cn` / `www.sse.com.cn` | 官方披露（最权威） |
+
+#### 2.5 数据源故障转移链（实战验证 2026-05）
+
+> ⚠️ **实战注意：** 中文金融平台（同花顺/百度财经/东方财富等）对自动化 fetch 请求有反爬保护（JS动态渲染、WAF拦截、重定向广告），**实际可用率偏低**。以下为经真实请求测试验证的优先级链：
+
+| 轮次 | 方案 | 可用性（2026-05）| 说明 |
+|------|------|-----------------|------|
+| 1st | 同花顺 P1 | ⚠️ 不稳定 | JS渲染，需浏览器环境才能完整解析 |
+| 2nd | 百度财经 P2 | ⚠️ 不稳定 | 同上，anti-bot 保护 |
+| 3rd | 东方财富 P3 | ⚠️ 不稳定 | 同上 |
+| **4th（兜底）** | **雅虎财经 P4** | **✅ 稳定** | **静态页面可直接 fetch，主页数据完整** |
+
+**雅虎财经 fetch 规则：**
+
+```text
+主页（✅可用）：   https://finance.yahoo.com/quote/{code}.SZ/
+财务页（❌重定向）：https://finance.yahoo.com/quote/{code}.SZ/financials/
+统计页（❌重定向）：https://finance.yahoo.com/quote/{code}.SZ/key-statistics/
+A股后缀：深市（300/001/002 等）→ .SZ；沪市（600/601/688 等）→ .SS
+```
+
+**雅虎财经主页可获取字段（2026-05 实测确认）：**
+
+| 字段 | 可用 | 备注 |
+|------|------|------|
+| 当前价格、昨日收盘、52周高低 | ✅ | 收盘后数值准确 |
+| 市值、PE(TTM)、EPS(TTM) | ✅ | TTM 口径 |
+| 营收(TTM)、净利润(TTM)、净利率 | ✅ | 无单季细分 |
+| ROE(TTM)、ROA(TTM) | ✅ | 盈利质量核心指标 |
+| D/E(最新季)、P/B(最新季)、总现金 | ✅ | 杠杆与资产 |
+| EV/EBITDA、EV/Revenue | ✅ | 替代估值指标 |
+| 自由现金流 FCF(TTM) | ✅ | 含正负值 |
+| 机构分析师目标价（均值/高/低）| ✅ | 重要机构观点对照 |
+| YTD / 1年 / 3年累计涨幅 | ✅ | 历史收益核对 |
+| 员工人数 | ✅ | 规模参考 |
+| 资金流向、龙虎榜、股东结构 | ❌ | 雅虎无此数据 |
+
+> **标注规则：** P1-P3 均失败时使用 P4，报告中须标注：`（来源：Yahoo Finance，单源，建议二次核查）`；交叉验证汇总表中注明中文来源访问失败原因。
 
 ---
 
@@ -711,6 +750,160 @@ $$P_{\text{合理}} = EPS_{\text{首年预测}} \times PE_{\text{同类上市公
 ````
 
 > ⚠️ 以上仅为情景推演，实际走势可能与预测存在重大偏差。使用时请结合自身风险承受能力。
+
+---
+
+### 输出模式选择
+
+| 模式 | 适用场景 | 输出格式 | 文件命名 |
+|------|---------|---------|--------|
+| **模式A：Markdown 表格（默认）** | 简单预测 / 附于分析报告附录 | `.md` 内嵌K线预测表 | 含于分析报告文件内 |
+| **模式B：交互式 HTML K线图（推荐）** | 日K/周K 独立可视化交付 | 独立 `.html`（ECharts）| `{公司名}({代码})K线预测_{YYYYMMDD}.html` |
+| **模式C：组合（MD + HTML）** | 深度分析完整交付场景 | MD 报告 + 独立 HTML 图表 | 两个文件同目录 |
+
+> **默认触发规则：** 用户明确要求"K线图" / "可视化" / "画出来" → 模式B；仅要求"每日预测"/"预测表格" → 模式A；生成深度分析报告时 → 模式C。
+
+---
+
+### 交互式 HTML K线图规范（模式B / C）
+
+#### 核心技术栈
+
+| 组件 | 方案 | 版本 | 加载方式 |
+|------|------|------|--------|
+| K线图引擎 | Apache ECharts | ≥ 5.4.3 | CDN：`cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js` |
+| 随机数引擎 | Mulberry32 PRNG（固定 seed，结果可完全复现）| — | HTML 内联实现（< 15行）|
+| 价格路径模型 | GBM（几何布朗运动）+ 事件冲击项 | — | HTML 内联实现 |
+| 样式主题 | 深色金融仪表盘（CSS 变量驱动）| — | HTML 内联 `<style>` |
+
+#### GBM 价格路径公式
+
+$$S_{t+1} = S_t \cdot \exp\!\left[\left(\mu - \frac{\sigma^2}{2}\right)\Delta t + \sigma\sqrt{\Delta t}\,Z + \text{shock}_t\right]$$
+
+其中：$\mu$ = 年化漂移率，$\sigma$ = 年化波动率，$\Delta t = 1/252$，$Z \sim \mathcal{N}(0,1)$（Box-Muller 变换），$\text{shock}_t$ = 关键事件冲击项。
+
+**三情景标准参数（A股科技/存储板块参考，可按实际调整）：**
+
+| 情景 | 默认权重 | 年化漂移 μ | 年化波动 σ | PRNG seed |
+|------|---------|----------|-----------|-----------| 
+| 🐂 乐观 | 20-25% | +80% ~ +120% | 60-70% | 123 |
+| ⚖️ 基准 | 55-65% | +10% ~ +25% | 50-60% | 42 |
+| 🐻 悲观 | 15-20% | -40% ~ -60% | 60-70% | 456 |
+
+> **调参原则：** 低估值高成长标的 → 上调乐观权重、增大乐观 μ；高估值均值回归标的（当前价 ≥ 机构最高目标价）→ 上调悲观权重、减小基准 μ。
+
+#### OHLC 日内结构生成规则
+
+| 价格分量 | 生成公式 |
+|---------|--------|
+| 收盘 Close | $S_{t+1}$（GBM路径值）|
+| 开盘 Open | $S_t \cdot \exp(Z_O \cdot \sigma\sqrt{\Delta t} \cdot 0.38)$ |
+| 最高 High | $\max(O,C) \cdot (1 + |Z_H| \cdot \sigma\sqrt{\Delta t} \cdot 0.52)$ |
+| 最低 Low  | $\min(O,C) \cdot (1 - |Z_L| \cdot \sigma\sqrt{\Delta t} \cdot 0.52)$ |
+
+#### ECharts 蜡烛图关键注意事项
+
+```javascript
+// ⚠️ ECharts 5.x candlestick 数据顺序：[开盘, 收盘, 最低, 最高]（非 OHLC 自然顺序！）
+series: [{ type: 'candlestick', data: [[open, close, low, high], ...] }]
+
+// A股颜色规范（与西方惯例相反：上涨=红，下跌=绿）
+itemStyle: {
+  color:        '#ef5350',  // 阳线（上涨）→ 红色
+  color0:       '#26a69a',  // 阴线（下跌）→ 青绿色
+  borderColor:  '#ef5350',
+  borderColor0: '#26a69a'
+}
+```
+
+#### HTML 文件功能模块检查清单
+
+- [ ] **页面头部**：股票名/代码、当前价格、动态PE、Q1净利润、加权目标价（JS动态计算填入）
+- [ ] **免责声明条幅**：醒目深红背景，标注「情景演示，不构成投资建议」
+- [ ] **三情景预测卡**：期末预测价格 + 相对涨跌幅（JS计算，牛熊颜色区分）
+- [ ] **视图切换按钮**：三情景对比 / 乐观日K / 基准日K+MA5+MA20 / 悲观日K
+- [ ] **主K线图**：ECharts candlestick + markPoint 关键事件金色 pin 标注
+- [ ] **成交量副图**：基准情景估算成交量柱状图（与主图联动 DataZoom 缩放）
+- [ ] **DataZoom 滑块**：区间缩放 + 鼠标滚轮 + 拖拽平移
+- [ ] **悬停 Tooltip**：OHLC 全量 + 涨跌幅 + 事件名称
+- [ ] **加权期望折线**：三情景按概率加权的期望收盘价折线（金色实线，全视图显示）
+- [ ] **前30日每日数据表**：OHLC + 涨跌幅 + 阶段标注（阳红阴绿字色）
+- [ ] **月度汇总卡片**：6格 grid，每月期末三情景价格
+- [ ] **全量120日数据表**：横向可滚动，序号+日期+OHLC+涨跌幅
+- [ ] **页脚**：数据来源 + 方法说明 + 免责重申 + 报告时间
+
+#### 关键事件冲击参数参考（A股存储/科技板块）
+
+| 事件类型 | 典型时间 | 基准冲击 | 乐观冲击 | 悲观冲击 |
+|---------|---------|---------|---------|--------|
+| H1 半年报（截止8月31日）| `2026-08-28` 附近 | +4% ~ +6% | +12% ~ +16% | -8% ~ -12% |
+| Q3 业绩预告（10月中旬）| `2026-10-22` 附近 | +1% ~ +3% | +4% ~ +6% | -5% ~ -8% |
+| NAND/行业价格信号（7月）| `2026-07-10` 附近 | 0% | +6% ~ +10% | -10% ~ -15% |
+| Q1 超预期季报（4月底）| `2026-04-28` 附近 | +3% ~ +8% | +10% ~ +15% | -6% ~ -10% |
+
+#### 中国 A 股 2026 关键假期（预测窗口参考）
+
+```javascript
+const HOLIDAYS_2026 = new Set([
+  '2026-06-17','2026-06-18','2026-06-19',  // 端午节（估算）
+  '2026-10-01','2026-10-02','2026-10-05',
+  '2026-10-06','2026-10-07'                // 国庆节
+  // 春节/劳动节/清明节通常在预测起始日之前，无需加入
+]);
+// 生成交易日规则：跳过 getDay()===0（日）、getDay()===6（六）及上述节假日
+```
+
+#### 核心 JavaScript 复用代码片段
+
+```javascript
+// ── Mulberry32 PRNG（固定种子，结果完全可复现）──
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+// ── Box-Muller 正态分布对 ──
+function normalPair(rand) {
+  let u1; do { u1 = rand(); } while (u1 < 1e-10);
+  const u2 = rand(), mag = Math.sqrt(-2 * Math.log(u1));
+  return [mag * Math.cos(2 * Math.PI * u2), mag * Math.sin(2 * Math.PI * u2)];
+}
+// ── GBM OHLC 生成器（核心函数）──
+function genOHLC({ S0, mu, sigma, seed, dates, shocks = {} }) {
+  const rand = mulberry32(seed);
+  const dt = 1/252, drift = (mu - 0.5*sigma*sigma)*dt, vol = sigma*Math.sqrt(dt);
+  let S = S0;
+  return dates.map(date => {
+    const [zC, zO] = normalPair(rand), [zH, zL] = normalPair(rand);
+    const close = S * Math.exp(drift + vol*zC + (shocks[date]||0));
+    const open  = S * Math.exp(zO * vol * 0.38);
+    const high  = Math.max(open, close) * (1 + Math.abs(zH) * vol * 0.52);
+    const low   = Math.min(open, close) * (1 - Math.abs(zL) * vol * 0.52);
+    S = close;
+    return { date, o:+open.toFixed(2), c:+close.toFixed(2), h:+high.toFixed(2), l:+low.toFixed(2) };
+  });
+}
+// ── 数据格式转换（⚠️ ECharts 顺序：open/close/low/high）──
+function toOHLC(data) { return data.map(d => [d.o, d.c, d.l, d.h]); }
+// ── 移动平均计算 ──
+function calcMA(data, period) {
+  const cs = data.map(d => d.c);
+  return cs.map((_, i) => i < period-1 ? null
+    : +(cs.slice(i-period+1, i+1).reduce((a,b)=>a+b) / period).toFixed(2));
+}
+```
+
+#### 文件命名规范
+
+```
+{公司名}({代码})K线预测_{YYYYMMDD}.html
+示例：德明利(001309)K线预测_20260515.html
+       江波龙(301308)K线预测_20260515.html
+存储路径：与分析报告同目录（用户工作区根目录）
+```
 
 ---
 
