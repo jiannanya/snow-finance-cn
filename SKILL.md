@@ -283,7 +283,12 @@ A股后缀：深市（300/001/002 等）→ .SZ；沪市（600/601/688 等）→
 
 **AI 填充要求（生成报告时必须执行）：**
 1. 替换所有 `{PLACEHOLDER}` 占位符为真实数据
-2. 将完整 Markdown 版报告文本填入 `<script>` 中的 `MARKDOWN_SOURCE = \`...\`` 变量（反引号内的内容，注意转义文本中的反引号为 `` \` ``）
+2. 将完整 Markdown 版报告文本填入 `<script>` 中的 `MARKDOWN_SOURCE = \`...\`` 变量（反引号内的内容，注意转义文本中的反引号为 `` \` ``）；或使用 DOM 提取方式（`nodeToMd` 遍历 `.report` 子元素），两者均可
+3. **HTML 本地可用性自检（生成后必须验证，禁止跳过）：**
+   - **JS 数据数组非空**：循环变量使用 `dates.length`（数组），不得传入数字后再访问 `.length`（数字无 `.length`，导致空数组、运行时 `TypeError`）
+   - **ECharts CDN 可达性**：使用 `https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js`；若有离线需求，改为内联 bundle 或其他已验证 CDN
+   - **导出函数正确性**：`exportWord` 必须使用 Word mso namespace（`xmlns:w="urn:schemas-microsoft-com:office:word"`）并嵌入 Word 专用 CSS（`@page`、`mso-*`），禁止直接照搬网页暗色主题 CSS；`exportMarkdown` 必须通过 DOM 提取或 `MARKDOWN_SOURCE` 变量导出全量内容，禁止使用仅含摘要的硬编码骨架
+   - **验证方法**：生成 HTML 文件后，在本地浏览器双击打开，检查：① 页面无白屏（ECharts 正常渲染） ② 控制台无 `TypeError`（数组非空）③ 三个导出按钮点击后文件内容完整
 
 **必须包含的章节（顺序固定）：**
 1. **分析摘要（Executive Summary）** —— 含综合评级、12个月目标价、PE 公式推导（三情景加权）、核心亮点（≤5条）、主要风险（≤3条）、**行业PE历史分位可视化描述**（例："当前PE处于历史5年 **23%** 分位 `[▁▂▃░░░░░]`，属历史低估区间"）
