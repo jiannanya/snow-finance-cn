@@ -266,17 +266,27 @@ A股后缀：深市（300/001/002 等）→ .SZ；沪市（600/601/688 等）→
 
 详见 [报告模板](./assets/report-template.md) 和 [导出脚本](./scripts/export-report.ps1)。
 
-#### 5.1 Markdown 报告生成
+#### 5.1 HTML 报告生成（默认格式）
 
-按 [报告模板](./assets/report-template.md) 生成结构化Markdown文件：
+> **所有能力的输出报告默认格式为 HTML。** 按 [HTML报告模板](./assets/report-template.html) 生成带导出按钮的完整HTML文件。
 
 ```
-文件命名：{公司名}({代码})深度分析报告_{YYYYMMDD}.md
+文件命名：{公司名}({代码})深度分析报告_{YYYYMMDD}.html
 存储路径：用户指定或当前工作区根目录
 ```
 
-必须包含的章节（顺序固定）：
-1. **分析摘要（Executive Summary）** —— 报告首页：综合评级、12个月目标价及 PE 计算公式（EPS推导 + 基准目标价 + 三情景加权目标价）、核心亮点（≤5条）、主要风险（≤3条）、**行业PE历史分位可视化描述**（例："当前PE处于历史5年 **23%** 分位 `[▁▂▃░░░░░]`，属历史低估区间"）
+**HTML模板特性：**
+- 顶部固定工具栏，内置三个导出按钮：🖨️ 导出 PDF / 📄 导出 Word / ⬇️ 导出 Markdown
+- PDF 导出：调用浏览器打印（工具栏自动隐藏，`@media print`）
+- Word 导出：以 `application/vnd.ms-word` 内容类型触发 `.doc` 下载
+- Markdown 导出：AI 将完整 MD 版本填入模板内 `MARKDOWN_SOURCE` 变量，点击直接下载 `.md`
+
+**AI 填充要求（生成报告时必须执行）：**
+1. 替换所有 `{PLACEHOLDER}` 占位符为真实数据
+2. 将完整 Markdown 版报告文本填入 `<script>` 中的 `MARKDOWN_SOURCE = \`...\`` 变量（反引号内的内容，注意转义文本中的反引号为 `` \` ``）
+
+**必须包含的章节（顺序固定）：**
+1. **分析摘要（Executive Summary）** —— 含综合评级、12个月目标价、PE 公式推导（三情景加权）、核心亮点（≤5条）、主要风险（≤3条）、**行业PE历史分位可视化描述**（例："当前PE处于历史5年 **23%** 分位 `[▁▂▃░░░░░]`，属历史低估区间"）
 2. 封面信息（股票代码/名称/报告日期/数据截止日期）
 3. 免责声明
 4. 公司基本情况
@@ -290,19 +300,17 @@ A股后缀：深市（300/001/002 等）→ .SZ；沪市（600/601/688 等）→
 12. 数据来源交叉验证汇总表
 13. 总结与投资提示
 
-#### 5.2 PDF 导出
+#### 5.2 PDF / Word / Markdown 导出
 
-运行 [export-report.ps1](./scripts/export-report.ps1)，需要系统安装以下任一工具：
-- **Pandoc**（推荐）：`pandoc report.md -o report.pdf`
-- **VS Code PDF插件**：Markdown PDF 插件一键导出
-- **浏览器打印**：Open Preview → Print → Save as PDF
+HTML 报告内已内置导出按钮，无需外部工具：
 
-#### 5.3 Word 导出
+| 格式 | 方式 | 操作 |
+|------|------|------|
+| **PDF** | 浏览器打印 | 点击「🖨️ 导出 PDF」→ 浏览器打印对话框 → 另存为 PDF |
+| **Word** | 内置 JS 下载 | 点击「📄 导出 Word」→ 直接下载 `.doc` 文件 |
+| **Markdown** | 内置 JS 下载 | 点击「⬇️ 导出 Markdown」→ 直接下载 `.md` 文件 |
 
-```powershell
-# 使用Pandoc导出Word
-pandoc report.md -o report.docx --reference-doc=./assets/word-template.docx
-```
+> 如用户明确要求纯 Markdown 输出，可直接输出 `.md` 文件（参考 [Markdown模板](./assets/report-template.md)），但 HTML 为默认格式。
 
 ---
 
@@ -311,7 +319,7 @@ pandoc report.md -o report.docx --reference-doc=./assets/word-template.docx
 ### 示例1：完整个股分析
 ```
 用户：详细分析德明利股票001309并给出目标价
-→ 执行：阶段1-5完整流程，输出深度报告Markdown，导出PDF
+→ 执行：阶段1-5完整流程，输出深度报告HTML（含PDF/Word/Markdown导出按钮）
 ```
 
 ### 示例2：快速估值验证

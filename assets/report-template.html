@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{COMPANY}（{TICKER}）深度分析报告 {REPORT_DATE}</title>
+<style>
+  :root {
+    --brand: #1a56db;
+    --brand-light: #e8f0fe;
+    --warn: #d97706;
+    --danger: #dc2626;
+    --ok: #16a34a;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --muted: #64748b;
+    --surface: #f8fafc;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    font-size: 14px;
+    color: var(--text);
+    background: #fff;
+    line-height: 1.7;
+  }
+
+  /* ─── 导出工具栏 ─── */
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 24px;
+    background: var(--brand);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .toolbar .title-text {
+    font-weight: 600;
+    font-size: 13px;
+    opacity: .92;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .toolbar .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
+  .toolbar button {
+    padding: 6px 16px;
+    border: 1.5px solid rgba(255,255,255,.6);
+    border-radius: 6px;
+    background: transparent;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+    font-family: inherit;
+  }
+  .toolbar button:hover { background: rgba(255,255,255,.18); border-color: #fff; }
+  .toolbar button.btn-pdf   { background: rgba(255,255,255,.12); }
+  .toolbar button.btn-word  { background: rgba(255,255,255,.12); }
+  .toolbar button.btn-md    { background: rgba(255,255,255,.12); }
+
+  /* ─── 报告容器 ─── */
+  .report {
+    max-width: 960px;
+    margin: 32px auto;
+    padding: 0 24px 64px;
+  }
+
+  /* ─── 封面头部 ─── */
+  .cover {
+    border-left: 4px solid var(--brand);
+    padding: 20px 24px;
+    background: var(--brand-light);
+    border-radius: 0 8px 8px 0;
+    margin-bottom: 28px;
+  }
+  .cover h1 { font-size: 22px; font-weight: 700; color: var(--brand); margin-bottom: 6px; }
+  .cover .meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 16px; margin-top: 8px; }
+  .cover .meta span::before { content: "·"; margin-right: 4px; color: var(--brand); }
+
+  /* ─── 免责声明 ─── */
+  .disclaimer {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 12px;
+    color: #92400e;
+    margin-bottom: 28px;
+  }
+  .disclaimer strong { color: var(--warn); }
+
+  /* ─── 章节标题 ─── */
+  h2 {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--brand);
+    border-bottom: 2px solid var(--brand-light);
+    padding-bottom: 6px;
+    margin: 32px 0 16px;
+  }
+  h3 { font-size: 14px; font-weight: 600; color: var(--text); margin: 20px 0 10px; }
+  h4 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 14px 0 8px; }
+
+  /* ─── 摘要评级卡 ─── */
+  .summary-card {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin: 16px 0 24px;
+  }
+  .kpi-box {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    background: var(--surface);
+    text-align: center;
+  }
+  .kpi-box .kpi-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+  .kpi-box .kpi-value { font-size: 20px; font-weight: 700; color: var(--brand); margin-top: 4px; line-height: 1.2; }
+  .kpi-box .kpi-sub   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .kpi-box.highlight  { border-color: var(--brand); background: var(--brand-light); }
+  .kpi-box.highlight .kpi-value { color: var(--brand); }
+
+  /* ─── 表格 ─── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 12px 0;
+  }
+  th {
+    background: var(--brand-light);
+    color: var(--brand);
+    font-weight: 600;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface); }
+  td.num, th.num { text-align: right; }
+  .bold td:first-child { font-weight: 600; }
+
+  /* ─── 目标价情景 ─── */
+  .scenario-table th:nth-child(4) { background: #dcfce7; color: var(--ok); }
+  .scenario-table td:nth-child(4) { font-weight: 700; color: var(--ok); }
+
+  /* ─── 风险矩阵 ─── */
+  .risk-high   { color: var(--danger); font-weight: 600; }
+  .risk-mid    { color: var(--warn);   font-weight: 600; }
+  .risk-low    { color: var(--ok);     font-weight: 600; }
+
+  /* ─── 亮点/风险列表 ─── */
+  .highlights, .risks {
+    padding-left: 20px;
+    margin: 10px 0;
+  }
+  .highlights li { margin-bottom: 6px; }
+  .risks li { margin-bottom: 6px; color: #7c3aed; }
+  .risks li::marker { color: var(--warn); }
+
+  /* ─── 验证状态徽章 ─── */
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .badge-ok      { background: #dcfce7; color: var(--ok); }
+  .badge-warn    { background: #fef9c3; color: #854d0e; }
+  .badge-error   { background: #fee2e2; color: var(--danger); }
+  .badge-single  { background: #ede9fe; color: #6d28d9; }
+
+  /* ─── 数据来源标注 ─── */
+  .src { font-size: 11px; color: var(--muted); font-style: italic; }
+
+  /* ─── 公式块 ─── */
+  .formula-block {
+    background: var(--surface);
+    border-left: 3px solid var(--brand);
+    padding: 12px 16px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+    font-family: "Courier New", monospace;
+    font-size: 13px;
+    color: var(--text);
+  }
+
+  /* ─── 分割线 ─── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+
+  /* ─── 脚注 ─── */
+  .footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* ─── 打印样式 ─── */
+  @media print {
+    .toolbar { display: none !important; }
+    .report  { margin: 0; padding: 20px; max-width: 100%; }
+    body     { font-size: 12px; }
+    h2       { page-break-before: auto; }
+    table    { page-break-inside: avoid; }
+    .cover   { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     导出工具栏（打印时自动隐藏）
+     ═══════════════════════════════════════════════════════ -->
+<div class="toolbar">
+  <span class="title-text">📊 {COMPANY}（{TICKER}）深度分析报告 · {REPORT_DATE}</span>
+  <div class="btn-group">
+    <button class="btn-pdf"  onclick="exportPDF()">🖨️ 导出 PDF</button>
+    <button class="btn-word" onclick="exportWord()">📄 导出 Word</button>
+    <button class="btn-md"   onclick="exportMarkdown()">⬇️ 导出 Markdown</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     报告主体
+     ═══════════════════════════════════════════════════════ -->
+<div class="report">
+
+  <!-- 封面 -->
+  <div class="cover">
+    <h1>{COMPANY}（{TICKER}）深度分析报告</h1>
+    <div class="meta">
+      <span>报告日期：{REPORT_DATE}</span>
+      <span>数据截止：{DATA_DATE}</span>
+      <span>交易所：{EXCHANGE}</span>
+      <span>分析师：snow-finance-cn · GitHub Copilot</span>
+    </div>
+  </div>
+
+  <!-- 免责声明 -->
+  <div class="disclaimer">
+    <strong>⚠️ 免责声明：</strong>本报告由 AI 辅助工具生成，仅供学习研究参考，不构成任何投资建议。
+    股市有风险，投资需谨慎。报告所有数据来源于公开网络渠道，分析结论仅代表基于公开信息的推断，
+    不代表对未来业绩的保证。投资者应自行承担投资决策风险。
+  </div>
+
+  <!-- ─── 分析摘要 ─── -->
+  <h2>分析摘要（Executive Summary）</h2>
+
+  <div class="summary-card">
+    <div class="kpi-box highlight">
+      <div class="kpi-label">最新股价</div>
+      <div class="kpi-value">{CURRENT_PRICE}</div>
+      <div class="kpi-sub">元 · {DATA_DATE}</div>
+    </div>
+    <div class="kpi-box highlight">
+      <div class="kpi-label">综合评级</div>
+      <div class="kpi-value">{INVESTMENT_RATING}</div>
+      <div class="kpi-sub">{REPORT_DATE}</div>
+    </div>
+    <div class="kpi-box highlight">
+      <div class="kpi-label">基准目标价</div>
+      <div class="kpi-value">{TARGET_PRICE_BASE}</div>
+      <div class="kpi-sub">元 · PE≈{BASE_PE}×</div>
+    </div>
+    <div class="kpi-box highlight">
+      <div class="kpi-label">潜在涨幅（基准）</div>
+      <div class="kpi-value">{TARGET_UPSIDE}%</div>
+      <div class="kpi-sub">乐观 {BULL_UPSIDE}% / 悲观 {BEAR_UPSIDE}%</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-label">总市值</div>
+      <div class="kpi-value">{MARKET_CAP}</div>
+      <div class="kpi-sub">亿元</div>
+    </div>
+    <div class="kpi-box">
+      <div class="kpi-label">PE（动态）</div>
+      <div class="kpi-value">{PE_DYNAMIC}×</div>
+      <div class="kpi-sub">PE(TTM) {PE_TTM}×</div>
+    </div>
+  </div>
+
+  <h3>核心投资亮点</h3>
+  <ol class="highlights">
+    <li>{HIGHLIGHT_1}</li>
+    <li>{HIGHLIGHT_2}</li>
+    <li>{HIGHLIGHT_3}</li>
+  </ol>
+
+  <h3>主要风险提示</h3>
+  <ul class="risks">
+    <li>{RISK_1}</li>
+    <li>{RISK_2}</li>
+    <li>{RISK_3}</li>
+  </ul>
+
+  <h3>目标价估值公式（PE法）</h3>
+  <div class="formula-block">
+EPS({FORECAST_YEAR}) = 归母净利润预测（{FORECAST_NET_PROFIT}亿元）÷ 总股本（{TOTAL_SHARES}亿股）= <strong>{FORECAST_EPS} 元/股</strong>
+
+目标价（基准） = {FORECAST_EPS} × {BASE_PE}× = <strong>{TARGET_PRICE_BASE} 元</strong>
+
+加权目标价 = {BEAR_TARGET}×20% + {BASE_TARGET}×60% + {BULL_TARGET}×20% = <strong>{WEIGHTED_TARGET} 元</strong>
+  </div>
+
+  <table class="scenario-table">
+    <tr><th>情景</th><th class="num">EPS预测（元）</th><th class="num">目标PE（×）</th><th class="num">目标价（元）</th><th class="num">概率权重</th></tr>
+    <tr><td>悲观</td><td class="num">{BEAR_EPS}</td><td class="num">{BEAR_PE}</td><td class="num">{BEAR_TARGET}</td><td class="num">20%</td></tr>
+    <tr><td>基准</td><td class="num">{BASE_EPS}</td><td class="num">{BASE_PE}</td><td class="num">{BASE_TARGET}</td><td class="num">60%</td></tr>
+    <tr><td>乐观</td><td class="num">{BULL_EPS}</td><td class="num">{BULL_PE}</td><td class="num">{BULL_TARGET}</td><td class="num">20%</td></tr>
+    <tr class="bold"><td>加权目标价</td><td class="num">—</td><td class="num">—</td><td class="num">{WEIGHTED_TARGET}</td><td class="num">100%</td></tr>
+  </table>
+  <p style="font-size:12px;color:var(--muted);margin-top:4px">PE区间选取依据：{PE_RATIONALE}</p>
+
+  <hr>
+
+  <!-- ─── 核心数据快照 ─── -->
+  <h2>一、核心数据快照</h2>
+  <table>
+    <tr><th>指标</th><th class="num">数值</th><th>数据时间</th><th>来源</th></tr>
+    <tr><td>最新股价（元）</td><td class="num">{CURRENT_PRICE}</td><td>{DATA_DATE}</td><td><span class="src">{PRICE_SOURCE}</span></td></tr>
+    <tr><td>总市值（亿元）</td><td class="num">{MARKET_CAP}</td><td>{DATA_DATE}</td><td><span class="src">{MKTCAP_SOURCE}</span></td></tr>
+    <tr><td>PE（动态，×）</td><td class="num">{PE_DYNAMIC}</td><td>{DATA_DATE}</td><td><span class="src">{PE_SOURCE}</span></td></tr>
+    <tr><td>PE（TTM，×）</td><td class="num">{PE_TTM}</td><td>{DATA_DATE}</td><td><span class="src">{PE_SOURCE}</span></td></tr>
+    <tr><td>PB（×）</td><td class="num">{PB}</td><td>{DATA_DATE}</td><td><span class="src">{PB_SOURCE}</span></td></tr>
+    <tr><td>52周最高价（元）</td><td class="num">{PRICE_52W_HIGH}</td><td>—</td><td><span class="src">—</span></td></tr>
+    <tr><td>52周最低价（元）</td><td class="num">{PRICE_52W_LOW}</td><td>—</td><td><span class="src">—</span></td></tr>
+    <tr><td>机构基础评级</td><td class="num">{RATING}</td><td>{RATING_DATE}</td><td><span class="src">{RATING_SOURCE}</span></td></tr>
+    <tr><td>机构一致目标价（元）</td><td class="num">{CONSENSUS_TARGET}</td><td>{RATING_DATE}</td><td><span class="src">{RATING_SOURCE}</span></td></tr>
+  </table>
+
+  <hr>
+
+  <!-- ─── 公司基本面 ─── -->
+  <h2>二、公司基本面</h2>
+
+  <h3>2.1 公司概况</h3>
+  <table>
+    <tr><td style="width:140px;color:var(--muted)">股票代码</td><td>{TICKER}（{EXCHANGE}）</td></tr>
+    <tr><td style="color:var(--muted)">上市日期</td><td>{LISTING_DATE}</td></tr>
+    <tr><td style="color:var(--muted)">实际控制人</td><td>{CONTROLLER}（持股 {CONTROLLER_PCT}%）</td></tr>
+    <tr><td style="color:var(--muted)">总股本</td><td>{TOTAL_SHARES} 亿股</td></tr>
+    <tr><td style="color:var(--muted)">流通股本</td><td>{FLOAT_SHARES} 亿股</td></tr>
+  </table>
+
+  <h3>2.2 主营业务</h3>
+  <p>{BUSINESS_DESCRIPTION}</p>
+
+  <h4>收入构成（{LATEST_REPORT_PERIOD}）</h4>
+  <table>
+    <tr><th>业务板块</th><th class="num">收入（亿元）</th><th class="num">占比（%）</th><th class="num">YoY增速（%）</th></tr>
+    <tr><td>{SEGMENT_1}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>{SEGMENT_2}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>其他</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr class="bold"><td>合计</td><td class="num">{TOTAL_REVENUE}</td><td class="num">100%</td><td class="num">{REVENUE_GROWTH}%</td></tr>
+  </table>
+
+  <h3>2.3 核心竞争优势</h3>
+  <ol class="highlights">
+    <li>{ADVANTAGE_1}</li>
+    <li>{ADVANTAGE_2}</li>
+    <li>{ADVANTAGE_3}</li>
+  </ol>
+
+  <hr>
+
+  <!-- ─── 财务分析 ─── -->
+  <h2>三、财务分析</h2>
+
+  <h3>3.1 历年营收与净利润</h3>
+  <table>
+    <tr><th>年份</th><th class="num">营收（亿元）</th><th class="num">YoY%</th><th class="num">归母净利（亿元）</th><th class="num">YoY%</th><th class="num">净利率%</th></tr>
+    <tr><td>2022</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>2023</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>2024</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>2025</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>{LATEST_QUARTER}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+  </table>
+
+  <h3>3.2 盈利能力</h3>
+  <table>
+    <tr><th>指标</th><th class="num">{YEAR_1}</th><th class="num">{YEAR_2}</th><th class="num">{YEAR_3}</th><th class="num">{LATEST_PERIOD}</th></tr>
+    <tr><td>毛利率（%）</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>净利率（%）</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>ROE（%）</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>ROA（%）</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+  </table>
+
+  <h3>3.3 财务健康度</h3>
+  <table>
+    <tr><th>指标</th><th class="num">数值</th><th>评估</th></tr>
+    <tr><td>资产负债率（%）</td><td class="num">{DEBT_RATIO}</td><td>{DEBT_ASSESS}</td></tr>
+    <tr><td>流动比率</td><td class="num">{CURRENT_RATIO}</td><td>{CURRENT_ASSESS}</td></tr>
+    <tr><td>经营现金流/净利润</td><td class="num">{CFO_NET_RATIO}</td><td>{CFO_ASSESS}</td></tr>
+    <tr><td>应收账款周转天数</td><td class="num">{AR_DAYS}</td><td>{AR_ASSESS}</td></tr>
+    <tr><td>存货周转天数</td><td class="num">{INV_DAYS}</td><td>{INV_ASSESS}</td></tr>
+  </table>
+
+  <hr>
+
+  <!-- ─── 行业分析 ─── -->
+  <h2>四、行业分析</h2>
+
+  <h3>4.1 行业概况</h3>
+  <table>
+    <tr><td style="width:180px;color:var(--muted)">申万一级行业</td><td>{INDUSTRY_SW1}</td></tr>
+    <tr><td style="color:var(--muted)">申万二级行业</td><td>{INDUSTRY_SW2}</td></tr>
+    <tr><td style="color:var(--muted)">当前行业景气度</td><td>{INDUSTRY_PROSPERITY}</td></tr>
+  </table>
+
+  <h3>4.2 行业趋势</h3>
+  <p>{INDUSTRY_TREND_DESCRIPTION}</p>
+
+  <h3>4.3 主要竞争对手对比</h3>
+  <table>
+    <tr><th>公司</th><th>股票代码</th><th class="num">市值（亿）</th><th class="num">PE(TTM)</th><th class="num">净利率%</th><th class="num">营收增速%</th></tr>
+    <tr style="font-weight:600;background:var(--brand-light)"><td>{COMPANY}</td><td>{TICKER}</td><td class="num">{MARKET_CAP}</td><td class="num">{PE_TTM}</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>{COMP_1}</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>{COMP_2}</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+    <tr><td>{COMP_3}</td><td>—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+  </table>
+
+  <hr>
+
+  <!-- ─── 资金面与机构评级 ─── -->
+  <h2>五、资金面与机构评级</h2>
+
+  <h3>5.1 近期资金流向</h3>
+  <table>
+    <tr><th>时段</th><th class="num">大单净流入（亿元）</th><th>评估</th></tr>
+    <tr><td>近5日</td><td class="num">—</td><td>—</td></tr>
+    <tr><td>近20日</td><td class="num">—</td><td>—</td></tr>
+    <tr><td>近60日</td><td class="num">—</td><td>—</td></tr>
+  </table>
+
+  <h3>5.2 机构研报汇总</h3>
+  <table>
+    <tr><th>机构</th><th>报告日期</th><th>评级</th><th class="num">目标价（元）</th><th>核心逻辑</th></tr>
+    <tr><td>{BROKER_1}</td><td>—</td><td>—</td><td class="num">—</td><td>—</td></tr>
+    <tr><td>{BROKER_2}</td><td>—</td><td>—</td><td class="num">—</td><td>—</td></tr>
+    <tr><td>{BROKER_3}</td><td>—</td><td>—</td><td class="num">—</td><td>—</td></tr>
+  </table>
+
+  <hr>
+
+  <!-- ─── 风险矩阵 ─── -->
+  <h2>六、风险矩阵</h2>
+  <table>
+    <tr><th>风险类型</th><th>具体描述</th><th class="num">严重性</th><th class="num">概率</th><th class="num">综合评分</th></tr>
+    <tr><td>行业风险</td><td>{INDUSTRY_RISK}</td><td class="num">⭐⭐⭐⭐⭐</td><td class="num">⭐⭐⭐</td><td class="num risk-high">15</td></tr>
+    <tr><td>竞争风险</td><td>{COMPETITION_RISK}</td><td class="num">⭐⭐⭐</td><td class="num">⭐⭐</td><td class="num risk-mid">6</td></tr>
+    <tr><td>财务风险</td><td>{FINANCIAL_RISK}</td><td class="num">⭐⭐⭐⭐</td><td class="num">⭐⭐</td><td class="num risk-mid">8</td></tr>
+    <tr><td>政策监管风险</td><td>{POLICY_RISK}</td><td class="num">⭐⭐⭐⭐</td><td class="num">⭐⭐</td><td class="num risk-mid">8</td></tr>
+    <tr><td>减持/解禁风险</td><td>{DILUTION_RISK}</td><td class="num">⭐⭐⭐</td><td class="num">⭐⭐⭐</td><td class="num risk-mid">9</td></tr>
+  </table>
+  <p style="font-size:12px;margin-top:8px">综合风险等级：<strong>{OVERALL_RISK_LEVEL}</strong></p>
+
+  <hr>
+
+  <!-- ─── 估值与目标价 ─── -->
+  <h2>七、估值与目标价</h2>
+
+  <h3>7.1 PE法估值</h3>
+  <p>预测EPS（{FORECAST_YEAR}）：<strong>{FORECAST_EPS} 元/股</strong>　EPS来源：{EPS_SOURCE}</p>
+  <table class="scenario-table">
+    <tr><th>情景</th><th class="num">EPS（元）</th><th class="num">目标PE（×）</th><th class="num">目标价（元）</th><th class="num">当前价涨幅%</th><th class="num">概率</th></tr>
+    <tr><td>悲观</td><td class="num">{BEAR_EPS}</td><td class="num">{BEAR_PE}</td><td class="num">{BEAR_TARGET}</td><td class="num">{BEAR_UPSIDE}%</td><td class="num">20%</td></tr>
+    <tr><td>基础</td><td class="num">{BASE_EPS}</td><td class="num">{BASE_PE}</td><td class="num">{BASE_TARGET}</td><td class="num">{BASE_UPSIDE}%</td><td class="num">60%</td></tr>
+    <tr><td>乐观</td><td class="num">{BULL_EPS}</td><td class="num">{BULL_PE}</td><td class="num">{BULL_TARGET}</td><td class="num">{BULL_UPSIDE}%</td><td class="num">20%</td></tr>
+    <tr class="bold"><td>加权目标价</td><td class="num">—</td><td class="num">—</td><td class="num">{WEIGHTED_TARGET}</td><td class="num">{WEIGHTED_UPSIDE}%</td><td class="num">100%</td></tr>
+  </table>
+
+  <h3>7.2 PB法验证</h3>
+  <div class="formula-block">
+PB目标价 = {BVPS} × {TARGET_PB}× = <strong>{PB_TARGET_PRICE} 元</strong>
+与PE法偏差：{PB_VS_PE_DIFF}%（合理范围 &lt; 20%）
+  </div>
+
+  <h3>7.3 综合目标价</h3>
+  <p>12个月目标价：<strong style="font-size:16px;color:var(--brand)">{TARGET_PRICE_BASE} 元</strong>　（上涨空间 {TARGET_UPSIDE}%）</p>
+  <table>
+    <tr><th>方法</th><th class="num">目标价（元）</th><th class="num">权重</th></tr>
+    <tr><td>PE法（加权）</td><td class="num">{WEIGHTED_TARGET}</td><td class="num">60%</td></tr>
+    <tr><td>PB法验证</td><td class="num">{PB_TARGET_PRICE}</td><td class="num">20%</td></tr>
+    <tr><td>机构一致预期</td><td class="num">{CONSENSUS_TARGET}</td><td class="num">20%</td></tr>
+    <tr class="bold"><td>综合目标价</td><td class="num">{TARGET_PRICE_BASE}</td><td class="num">100%</td></tr>
+  </table>
+
+  <hr>
+
+  <!-- ─── 综合评分 ─── -->
+  <h2>八、综合评分</h2>
+  <table>
+    <tr><th>维度</th><th class="num">权重</th><th class="num">得分(1-5)</th><th class="num">加权得分</th></tr>
+    <tr><td>盈利爆发力</td><td class="num">20%</td><td class="num">{SCORE_EARNINGS}</td><td class="num">{WEIGHTED_SCORE_EARNINGS}</td></tr>
+    <tr><td>行业景气度</td><td class="num">20%</td><td class="num">{SCORE_INDUSTRY}</td><td class="num">{WEIGHTED_SCORE_INDUSTRY}</td></tr>
+    <tr><td>估值吸引力</td><td class="num">15%</td><td class="num">{SCORE_VALUATION}</td><td class="num">{WEIGHTED_SCORE_VALUATION}</td></tr>
+    <tr><td>财务健康度</td><td class="num">15%</td><td class="num">{SCORE_FINANCIAL}</td><td class="num">{WEIGHTED_SCORE_FINANCIAL}</td></tr>
+    <tr><td>竞争壁垒</td><td class="num">15%</td><td class="num">{SCORE_MOAT}</td><td class="num">{WEIGHTED_SCORE_MOAT}</td></tr>
+    <tr><td>资金面</td><td class="num">10%</td><td class="num">{SCORE_FLOW}</td><td class="num">{WEIGHTED_SCORE_FLOW}</td></tr>
+    <tr><td>管理层与治理</td><td class="num">5%</td><td class="num">{SCORE_MGMT}</td><td class="num">{WEIGHTED_SCORE_MGMT}</td></tr>
+    <tr class="bold"><td>综合得分</td><td class="num">100%</td><td class="num">—</td><td class="num">{TOTAL_SCORE}/5.0</td></tr>
+  </table>
+  <p style="margin-top:10px">投资评级：<strong style="color:var(--brand)">{INVESTMENT_RATING}</strong>（强烈推荐 / 推荐关注 / 中性观望 / 谨慎回避）</p>
+
+  <hr>
+
+  <!-- ─── 数据交叉验证 ─── -->
+  <h2>九、数据交叉验证记录</h2>
+  <table>
+    <tr><th>数据项</th><th>来源A值</th><th>来源B值</th><th class="num">差异%</th><th>采用值</th><th>状态</th></tr>
+    <tr><td>最新股价</td><td>—</td><td>—</td><td class="num">—</td><td>—</td><td><span class="badge badge-ok">✅ 一致</span></td></tr>
+    <tr><td>总市值</td><td>—</td><td>—</td><td class="num">—</td><td>—</td><td><span class="badge badge-ok">✅ 一致</span></td></tr>
+    <tr><td>PE(TTM)</td><td>—</td><td>—</td><td class="num">—</td><td>—</td><td><span class="badge badge-warn">⚠️ 差异</span></td></tr>
+    <tr><td>净利润（最新季）</td><td>—</td><td>—</td><td class="num">—</td><td>—</td><td><span class="badge badge-ok">✅ 一致</span></td></tr>
+    <tr><td>机构目标价</td><td>—</td><td>—</td><td class="num">—</td><td>—</td><td><span class="badge badge-single">⚠️ 单源</span></td></tr>
+  </table>
+
+  <hr>
+
+  <!-- ─── 投资逻辑总结 ─── -->
+  <h2>十、投资逻辑总结</h2>
+
+  <h3>看多逻辑</h3>
+  <ol class="highlights">
+    <li>{BULL_LOGIC_1}</li>
+    <li>{BULL_LOGIC_2}</li>
+    <li>{BULL_LOGIC_3}</li>
+  </ol>
+
+  <h3>看空逻辑</h3>
+  <ul class="risks">
+    <li>{BEAR_LOGIC_1}</li>
+    <li>{BEAR_LOGIC_2}</li>
+  </ul>
+
+  <h3>核心观察指标（持续跟踪）</h3>
+  <ul style="padding-left:20px;margin-top:8px">
+    <li style="margin-bottom:4px">☐ {MONITOR_1}</li>
+    <li style="margin-bottom:4px">☐ {MONITOR_2}</li>
+    <li style="margin-bottom:4px">☐ {MONITOR_3}</li>
+  </ul>
+
+  <!-- 脚注 -->
+  <div class="footer">
+    本报告由 snow-finance-cn skill 生成 &nbsp;|&nbsp; 报告日期：{REPORT_DATE} &nbsp;|&nbsp; 仅供学习研究参考，不构成投资建议
+  </div>
+
+</div><!-- /report -->
+
+<!-- ═══════════════════════════════════════════════════════
+     导出脚本
+     ═══════════════════════════════════════════════════════ -->
+<script>
+// AI填充此变量：将完整Markdown版报告文本嵌入此处（注意转义反引号为 \`）
+const MARKDOWN_SOURCE = `{MARKDOWN_SOURCE}`;
+
+const FILENAME_BASE = "{COMPANY}({TICKER})深度分析报告_{REPORT_DATE}";
+
+/* ── PDF 导出：调用浏览器打印 ── */
+function exportPDF() {
+  window.print();
+}
+
+/* ── Word 导出：以 Word XML 内容类型触发下载 ── */
+function exportWord() {
+  const html = `<!DOCTYPE html><html xmlns:o='urn:schemas-microsoft-com:office:office'
+    xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+    <head><meta charset='UTF-8'><title>${FILENAME_BASE}</title>
+    <style>body{font-family:SimSun,serif;font-size:12pt;}
+    table{border-collapse:collapse;width:100%;}td,th{border:1px solid #ccc;padding:4pt 6pt;}
+    h1{font-size:18pt}h2{font-size:14pt}h3{font-size:12pt}
+    .toolbar{display:none}</style></head>
+    <body>${document.querySelector('.report').innerHTML}</body></html>`;
+  const blob = new Blob(['\uFEFF' + html], {
+    type: 'application/vnd.ms-word;charset=utf-8'
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = FILENAME_BASE + '.doc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ── Markdown 导出：下载嵌入的 MD 源文本 ── */
+function exportMarkdown() {
+  if (!MARKDOWN_SOURCE || MARKDOWN_SOURCE.trim() === '{MARKDOWN_SOURCE}') {
+    alert('Markdown 源内容尚未由 AI 填充（占位符 {MARKDOWN_SOURCE} 未替换）。');
+    return;
+  }
+  const blob = new Blob([MARKDOWN_SOURCE], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = FILENAME_BASE + '.md';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>

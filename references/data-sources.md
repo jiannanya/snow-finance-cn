@@ -12,7 +12,7 @@
 | **同花顺** | 10jqka.com.cn | 财务/资金/研报/F10全面 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | **东方财富** | eastmoney.com | 研报/公告/行情 | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | **百度财经** | finance.baidu.com | 快速查询/PE概览 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **新浪财经** | finance.sina.com.cn | 实时行情/K线 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+| **新浪财经（P0优先）** | hq.sinajs.cn / finance.sina.com.cn | **实时行情API（轻量/免JS渲染/稳定）** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | **富途牛牛** | futu.io | 分析师评级/目标价 | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
 | **雪球** | xueqiu.com | 社区舆情/讨论 | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
 | **深交所** | szse.cn | 官方公告（最权威） | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
@@ -106,14 +106,44 @@ https://finance.baidu.com/stock/ab-{code}
 https://www.baidu.com/s?wd={公司名}股票代码
 ```
 
-### 2.4 新浪财经
+### 2.4 新浪财经（P0 — 实时行情首选）
+
+> ✅ **2026-05 实测稳定**：纯文本 API 响应，无 JS 渲染，无 WAF 拦截，支持批量查询，是所有数据源中可用性最高的实时行情接口。
 
 ```
-# 深市实时行情
-https://finance.sina.com.cn/realstock/company/sz{code}/nc.shtml
+# ★ 核心接口：实时行情 API（推荐，P0优先使用）
+https://hq.sinajs.cn/list={市场前缀}{code}
 
-# 沪市实时行情
-https://finance.sina.com.cn/realstock/company/sh{code}/nc.shtml
+# 请求要求：必须携带 Referer 头，否则返回空值
+Headers: Referer: https://sina.com.cn
+
+# 市场前缀规则
+沪市（600/601/603/605/688 等）→ sh，例：sh600519
+深市（000/001/002/003/300 等）→ sz，例：sz001309
+
+# 批量查询（逗号分隔，一次最多约100只）
+https://hq.sinajs.cn/list=sh600519,sz001309,sz000001
+
+# 返回格式（逗号分隔字段）
+var hq_str_{市场}{code}="名称,今开,昨收,最新价,最高,最低,竞买价,竞卖价,成交量(股),成交额(元),买一量,买一价,...,日期,时间";
+
+# 字段序号索引（0-based）
+[0]名称  [1]今开  [2]昨收  [3]最新价  [4]最高  [5]最低
+[6]竞买价  [7]竞卖价  [8]成交量(股)  [9]成交额(元)
+[10-19]买一至买五（量/价交替）  [20-29]卖一至卖五（量/价交替）
+[30]日期  [31]时间
+
+# Python 调用示例（✅已验证，见 assets/sina-realtime.py）
+import requests
+headers = {'Referer': 'https://sina.com.cn'}
+response = requests.get('https://hq.sinajs.cn/list=sh600519', headers=headers)
+# → {'名称': '贵州茅台', '最新价': '1330.410', '成交量(股)': '3020614', ...}
+```
+
+```
+# 备用：网页行情页（JS渲染，可用性低于API）
+https://finance.sina.com.cn/realstock/company/sz{code}/nc.shtml  # 深市
+https://finance.sina.com.cn/realstock/company/sh{code}/nc.shtml  # 沪市
 ```
 
 ### 2.5 官方公告源（最权威）
@@ -256,17 +286,26 @@ https://www.sse.com.cn/disclosure/listedinfo/announcement/?productId={code}
 ### fetch_webpage 最佳实践
 
 ```
-# 推荐同时抓取主页+财务页，提高效率
-并行获取：
+# ★ P0优先：新浪财经实时行情 API（最稳定，优先使用）
+GET https://hq.sinajs.cn/list={市场}{code}
+Headers: Referer: https://sina.com.cn
+→ 直接返回文本，无需浏览器渲染，Python requests 可直接解析
+→ 完整示例见 assets/sina-realtime.py（2026-05 验证可用）
+
+# P1 并行：同花顺主要页面（JS渲染，有时可用）
 - stockpage.10jqka.com.cn/{code}/          # 行情+基本面
 - stockpage.10jqka.com.cn/{code}/finance/  # 财务详情
 - stockpage.10jqka.com.cn/{code}/operate/  # 经营分析
 
-# 部分URL可能失败（服务器限制）
-- 东方财富数据页：提取内容失败概率较高
-- 新浪财经realstock：偶发连接关闭
+# P1 备用：东方财富行情页（JS渲染，有时可用）
+- quote.eastmoney.com/sz{code}.html
+- quote.eastmoney.com/sh{code}.html
+
+# 部分URL失败情况说明
+- 同花顺/东方财富/百度财经：JS动态渲染，fetch_webpage成功率不稳定
+- 新浪财经realstock网页：偶发连接关闭（但 hq.sinajs.cn API 稳定）
 - 雪球：有WAF防爬，内容通常无法提取
-→ 处理：失败时切换备用来源，不重试同一失败URL
+→ 处理：P1失败时切换备用来源，不重试同一失败URL；P0新浪API始终可尝试
 ```
 
 ### 判断数据时效性
