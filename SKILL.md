@@ -284,11 +284,26 @@ A股后缀：深市（300/001/002 等）→ .SZ；沪市（600/601/688 等）→
 **AI 填充要求（生成报告时必须执行）：**
 1. 替换所有 `{PLACEHOLDER}` 占位符为真实数据
 2. 将完整 Markdown 版报告文本填入 `<script>` 中的 `MARKDOWN_SOURCE = \`...\`` 变量（反引号内的内容，注意转义文本中的反引号为 `` \` ``）；或使用 DOM 提取方式（`nodeToMd` 遍历 `.report` 子元素），两者均可
-3. **HTML 本地可用性自检（生成后必须验证，禁止跳过）：**
-   - **JS 数据数组非空**：循环变量使用 `dates.length`（数组），不得传入数字后再访问 `.length`（数字无 `.length`，导致空数组、运行时 `TypeError`）
-   - **ECharts CDN 可达性**：使用 `https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js`；若有离线需求，改为内联 bundle 或其他已验证 CDN
+3. **HTML 本地可用性自检（生成后强制执行，禁止跳过）：**
+
+   **代码层面：生成前必须遵守的强制编码规则**
+   - **禁止依赖 `window.event` / `event.target`**：在既可被点击触发、又会被代码直接调用的函数里，`window.event` 在非IE浏览器的直接调用场景下为 `undefined`，会立即抛出 `TypeError` 导致图表不渲染。**正确做法**：给按钮添加 `data-view="{view}"` 属性，函数内用 `document.querySelector('[data-view="' + view + '"]')` 激活，完全不依赖 `event` 对象
+   - **JS 循环变量必须使用数组**：迭代路径数组时，循环条件须为 `for (let i = 0; i < dates.length; i++)`（`dates` 是数组），不得传入数字 `n` 后在循环内写 `n.length`（数字无 `.length`，导致零次循环、空数组）
+   - **ECharts 初始化必须加保护 + 关闭 blob-worker**：
+     ```javascript
+     if (typeof echarts === 'undefined') {
+       document.getElementById('mainChart').innerHTML = '<p style="color:red">⚠️ ECharts 未加载，请检查网络后刷新</p>';
+       throw new Error('ECharts not loaded');
+     }
+     const chart = echarts.init(el, 'dark', { renderer:'canvas', useDirtyRect:false });
+     // renderer:'canvas' + useDirtyRect:false 避免 file:// 协议下 blob-worker 安全警告
+     ```
    - **导出函数正确性**：`exportWord` 必须使用 Word mso namespace（`xmlns:w="urn:schemas-microsoft-com:office:word"`）并嵌入 Word 专用 CSS（`@page`、`mso-*`），禁止直接照搬网页暗色主题 CSS；`exportMarkdown` 必须通过 DOM 提取或 `MARKDOWN_SOURCE` 变量导出全量内容，禁止使用仅含摘要的硬编码骨架
-   - **验证方法**：生成 HTML 文件后，在本地浏览器双击打开，检查：① 页面无白屏（ECharts 正常渲染） ② 控制台无 `TypeError`（数组非空）③ 三个导出按钮点击后文件内容完整
+
+   **验证步骤：生成 HTML 后必须立即执行**
+   1. 用 `Start-Process` 或 `start` 命令在系统默认浏览器中双击打开（不启动任何 HTTP 服务器）
+   2. 打开后确认：① 图表区域正常渲染（非白屏/灰屏）② 切换视图按钮正常高亮切换 ③ 浏览器控制台无 `TypeError`
+   3. 如验证失败，必须修复后再次验证，**不得跳过验证直接交付用户**
 
 **必须包含的章节（顺序固定）：**
 1. **分析摘要（Executive Summary）** —— 含综合评级、12个月目标价、PE 公式推导（三情景加权）、核心亮点（≤5条）、主要风险（≤3条）、**行业PE历史分位可视化描述**（例："当前PE处于历史5年 **23%** 分位 `[▁▂▃░░░░░]`，属历史低估区间"）
